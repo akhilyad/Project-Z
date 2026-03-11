@@ -50,20 +50,29 @@ export async function POST(request: Request) {
     // Send to Gemini for extraction
     const extracted = await extractProfile(rawText);
 
-    // Save the original file locally (production: use S3)
-    const fs = await import("fs/promises");
-    const path = await import("path");
-    const uploadDir = path.join(process.cwd(), "uploads");
-    await fs.mkdir(uploadDir, { recursive: true });
-    const fileName = `${decoded.userId}-${Date.now()}-${file.name}`;
-    const filePath = path.join(uploadDir, fileName);
-    await fs.writeFile(filePath, buffer);
+    // Save the original file locally (production: use S3 or skip)
+    let fileUrl = "";
+    if (process.env.VERCEL) {
+      // Vercel serverless has a read-only filesystem. 
+      // In a real app, upload to AWS S3/Uploadthing here.
+      console.log("Skipping local file write on Vercel. File parsed successfully.");
+      fileUrl = `/uploads/placeholder-${file.name}`;
+    } else {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const uploadDir = path.join(process.cwd(), "uploads");
+      await fs.mkdir(uploadDir, { recursive: true });
+      const fileName = `${decoded.userId}-${Date.now()}-${file.name}`;
+      const filePath = path.join(uploadDir, fileName);
+      await fs.writeFile(filePath, buffer);
+      fileUrl = `/uploads/${fileName}`;
+    }
 
     // Update the user's profile
     await prisma.profile.upsert({
       where: { userId: decoded.userId },
       update: {
-        originalCvUrl: `/uploads/${fileName}`,
+        originalCvUrl: fileUrl,
         extractedData: JSON.stringify(extracted),
         extractedSkills: JSON.stringify(extracted.skills || []),
         yearsExperience: extracted.yearsOfExperience || null,
@@ -73,7 +82,7 @@ export async function POST(request: Request) {
       },
       create: {
         userId: decoded.userId,
-        originalCvUrl: `/uploads/${fileName}`,
+        originalCvUrl: fileUrl,
         extractedData: JSON.stringify(extracted),
         extractedSkills: JSON.stringify(extracted.skills || []),
         yearsExperience: extracted.yearsOfExperience || null,

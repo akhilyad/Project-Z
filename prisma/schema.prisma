@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                 String        @id @default(uuid())
+  email              String        @unique
+  passwordHash       String
+  subscriptionStatus String        @default("spark") // spark | momentum | apex
+  applicationsUsed   Int           @default(0)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  profile            Profile?
+  applications       Application[]
+}
+
+model Profile {
+  id              String @id @default(uuid())
+  userId          String @unique
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalCvUrl   String?
+  extractedData   String? // JSON string of extracted profile
+  extractedSkills String? // JSON array of skills
+  yearsExperience Int?
+  industryFocus   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Application {
+  id             String     @id @default(uuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName    String
+  jobTitle       String
+  jobDescription String
+  jobUrl         String?
+  status         String     @default("drafting") // drafting | applying | success | manual_review
+  appliedAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  documents      Document[]
+}
+
+model Document {
+  id             String      @id @default(uuid())
+  applicationId  String
+  application    Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  tailoredCvUrl  String?
+  tailoredCvText String?
+  coverLetterText String?
+  createdAt      DateTime    @default(now())
+}
